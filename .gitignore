@@ -1,0 +1,32 @@
+# HubSpot copyrighted source material — reference only, do not version
+*.pdf
+
+# macOS
+.DS_Store
+._*
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*~
+
+# Env / secrets (for when we add scripts)
+.env
+.env.*
+secrets/
+*.key
+*.pem
+
+# Python artifacts (for future corpus generation scripts)
+__pycache__/
+*.pyc
+venv/
+.venv/
+
+# Node (if any)
+node_modules/
+
+# Generated corpus (intermediate, committed only when final)
+*.gen.json
+/corpus_drafts/
