@@ -150,27 +150,96 @@ Haiku instead (see §7).
 
 ---
 
-## 6 · Selection within a topic
+## 6 · Selection within a topic — DETERMINISTIC (no LLM, no randomness)
 
-Once the topic is picked:
+Once the topic is picked, the selection is a pure function of:
+the user's state + the entry's last-shown timestamp + stable entry IDs.
+
+Same inputs → same entry. Always. Testable, debuggable, predictable.
 
 ```python
-candidates = corpus.filter(topic=matched_topic)
-candidates = candidates.filter(id NOT IN user.recent_shown[last 20])
-if time_of_day in (morning, night):
-    # prefer matching time_bias, fall back to "any"
-    candidates = prioritize(time_bias == time_of_day OR time_bias == "any")
-# filter by matching favorite_jesus_phrase_ref if present in tags
-if user.favorite_jesus_phrase_ref and candidates.has_match():
-    prioritize those entries
-# weighted random pick
-choice = weighted_random(candidates, key="weight")
-user.recent_shown.append(choice.id)
+def pick_entry(bucket: str, ctx: UserContext) -> Entry:
+    # 1. All entries in this bucket
+    entries = corpus.by_bucket[bucket]
+
+    # 2. Hard filter: cooldown
+    RECENT_ENTRY_WINDOW = 30   # last N entry IDs shown
+    RECENT_VERSE_WINDOW = 30   # last N verse refs shown
+    COOLDOWN_DAYS = 45         # an entry can repeat only after 45 days
+
+    candidates = [
+        e for e in entries
+        if e.id not in ctx.recent_ids[-RECENT_ENTRY_WINDOW:]
+        and e.verse_ref not in ctx.recent_refs[-RECENT_VERSE_WINDOW:]
+        and (ctx.now - e.last_shown_at).days >= COOLDOWN_DAYS
+    ]
+
+    # 3. If filter empties the pool, relax in three steps
+    if not candidates:
+        candidates = [e for e in entries
+                      if e.id not in ctx.recent_ids[-10:]]
+    if not candidates:
+        candidates = [e for e in entries
+                      if e.verse_ref not in ctx.recent_refs[-10:]]
+    if not candidates:
+        candidates = entries  # full pool, signal a soft-repeat
+
+    # 4. Deterministic scoring — higher = better
+    def score(e: Entry) -> tuple:
+        time_match = 1 if e.time_bias == ctx.time_of_day else 0
+        any_bias  = 1 if e.time_bias == "any" else 0
+        tone_penalty = -1 if e.tone in ctx.recent_tones[-3:] else 0
+        fav_verse_match = (
+            1 if ctx.favorite_jesus_phrase_ref
+                 and e.verse_ref == ctx.favorite_jesus_phrase_ref
+            else 0
+        )
+        lru_rank = -e.last_shown_at.timestamp()  # older = higher
+        # Tuple sort: time_match > fav_verse > lru > weight > id (stable tiebreak)
+        return (
+            time_match,
+            fav_verse_match,
+            any_bias,
+            tone_penalty,
+            lru_rank,
+            e.weight,
+            -hash(e.id),  # deterministic tiebreak
+        )
+
+    return max(candidates, key=score)
 ```
 
-If the candidate pool shrinks below 3, relax `recent_shown` window from 20
-to 10. If still <3, let the user see a repeat (>14 days old) with a small
-"nueva reflexión" note.
+**Properties:**
+- **Pure function** of `(bucket, user_context, corpus)` — no randomness.
+- **LRU-biased**: least-recently-shown entries float to the top.
+- **Verse-diversity guaranteed** by the `recent_refs` cooldown window.
+- **No seed, no shuffle, no LLM call.** Runs in ~1ms.
+- **Fully testable** — write a fixture of context + corpus, assert a
+  specific entry is returned.
+
+---
+
+### Why not randomness?
+
+- Random pools need seed management (reproducible bugs are hard).
+- Two unlocks 30 seconds apart with the same mood should yield the
+  *same* entry in the grace window — random would thrash.
+- When we ship the corpus, we want to audit: "for this persona +
+  this bucket, what's the top 5?" Deterministic makes that possible.
+- If an entry is broken, we can find exactly which users will see it
+  next — random can't.
+
+### Why not an LLM ranker?
+
+- Every unlock would cost ~$0.001 in Haiku fees → $0.30–0.90/user/month
+  at scale; deterministic is $0.
+- 500–800ms latency per unlock → >95% on deterministic is <10ms.
+- Offline would break. Deterministic works on a plane.
+- The corpus is already human-reviewed. Ranking doesn't need intelligence
+  to match emotion → bucket → entry; it needs consistency.
+
+The LLM earns its keep in the *one-time* corpus generation. Runtime is
+just code.
 
 ---
 

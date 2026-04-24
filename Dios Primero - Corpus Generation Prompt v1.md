@@ -114,19 +114,106 @@ is more salient than their mood.
 
 ---
 
-## 3 · Entries per bucket
+## 3 · Entries per bucket (tiered for variety)
 
-Target **25 entries per bucket** to guarantee a user can cycle ~3 weeks
-of daily use on their dominant emotion before seeing a repeat.
+The Bible has enough material to cover any emotion dozens of ways.
+We tier allocation so heavy-use buckets get deep variety and niche
+buckets stay lean.
 
-- 50 buckets × 25 entries = **1,250 entries per language**
-- × 2 languages (ES, PT-BR) = **2,500 total entries**
+**Tier 1 — hot buckets (70 entries each):**
+Common daily emotions. Heavy users will hit these most.
+- anx_general, anx_night, anx_work, anx_future
+- rest_physical, rest_mental
+- sad_general, melancholy
+- guilt_relapse, shame_identity
+- lonely_relational
+- temptation_impulse
+- gratitude_specific, joy
+- moment_morning, moment_night
 
-Editorial variety within each bucket:
-- 40% variations of advice tone (contemplative / urgent / comforting /
-  practical / celebratory)
-- 40% variations of verse (4-6 different NT verses per bucket)
-- 20% variations of prayer length / structure
+= **16 buckets × 70 = 1,120 entries**
+
+**Tier 2 — standard buckets (40 entries each):**
+Common but less frequent.
+- anx_money, anx_health
+- grief_loss, grief_relationship, sad_general (variant), rest_emotional, rest_spiritual
+- lonely_physical, lonely_spiritual
+- guilt_specific, shame_past
+- fear_failure, fear_rejection, fear_death, fear_unknown
+- anger_at_person, anger_at_situation, anger_at_self
+- emptiness_general, purpose_lost, boredom_existential
+- doubt_god_exists, doubt_god_hears, doubt_worth
+- temptation_recurring, temptation_compromise
+- hope_renewed, moment_before_difficult, moment_after_fight, moment_after_bad_news, moment_return
+
+= **~27 buckets × 40 = 1,080 entries**
+
+**Tier 3 — niche / life-moment (20 entries each):**
+Edge or rare.
+- moment_sunday, moment_weekly_milestone, moment_first_unlock, moment_celebration
+- Any seasonal buckets added later (easter, advent, christmas)
+
+= **~7 buckets × 20 = 140 entries**
+
+**Per-language total: ~2,340 entries.**
+**Both languages: ~4,680 entries.**
+
+---
+
+### Variety requirements per bucket (STRICT)
+
+For a bucket of 70 entries:
+- **Minimum 20 distinct verse references** (was 6)
+- **Maximum 4 entries** may cite the same verse (was 6, and only when
+  the angle is substantially different)
+- **At least 40%** of cited verses must come from outside the Gospels
+  (Epistles, Acts, Revelation) — prevents Matthew/John monoculture
+- **Tone rotation:** no more than 5 consecutive entries (by creation
+  order) share the same tone
+
+For a bucket of 40 entries:
+- Minimum 12 distinct verses, max 4 entries per verse
+- Same 40% non-Gospel rule
+
+For a bucket of 20 entries:
+- Minimum 8 distinct verses, max 3 entries per verse
+
+### Corpus-wide verse coverage target
+
+Across the full corpus (both languages combined), cite **≥ 450 distinct
+New Testament verses**. The NT has ~7,957 verses; 450 is ~5.7% — a deep
+well with plenty of headroom for v2 expansion.
+
+Track a `verse_coverage_report.json` during generation:
+
+```json
+{
+  "total_distinct_verses_cited": 487,
+  "by_book": { "Mateo": 54, "Juan": 61, "Romanos": 38, ... },
+  "overused_verses": [
+    { "ref": "Mateo 11:28", "count_across_buckets": 24 }
+  ]
+}
+```
+
+If any verse appears in more than 6 buckets across the corpus, flag
+for reviewer — likely we're leaning too hard on crowd-pleasers.
+
+---
+
+### Rotation math (how long before any repeat at runtime)
+
+With this corpus and a `recent_refs` window of 30 entries + 45-day
+cooldown per entry:
+
+| Usage profile | Days before any repeat |
+|---|---|
+| Light (1 unlock/day, anxiety only) | ~70 days |
+| Typical (5/day, mix of buckets) | >90 days |
+| Heavy (20/day, all anxiety) | ~35 days in same bucket, but mix of verses |
+
+Even a heavy user cycling one emotion sees a fresh verse almost
+every time.
 
 ---
 
@@ -302,28 +389,29 @@ corpus takes a weekend on a laptop.
 
 ---
 
-## 8 · Cost projection (Opus 4.7)
+## 8 · Cost projection (Sonnet 4.6, selected authoring model)
 
 Pricing (2026):
-- Input: **$15.00 / MTok**
-- Output: **$75.00 / MTok**
-- Cache write (5m): **$18.75 / MTok**
-- Cache read: **$1.50 / MTok**
+- Input: **$3.00 / MTok**
+- Output: **$15.00 / MTok**
+- Cache read: **$0.30 / MTok**
 
-Per entry:
-- System prompt (cached): ~2,500 tokens → read cost: 2,500 × $1.50/M = **$0.00375**
-- User payload (not cached, grows with existing_entries): avg ~1,500 tokens → **$0.0225**
-- Output (JSON entry): ~600 tokens → **$0.045**
-- **Total per entry: ~$0.071**
+Per entry (cached system prompt, growing avoid-list):
+- System prompt cache read: ~$0.0008
+- User payload: ~$0.0045
+- Output: ~$0.009
+- **~$0.014 per entry**
 
-Corpus total:
-- 2,500 entries × $0.071 = **~$178 one-time**
+Corpus total (expanded for variety):
+- ~4,680 entries × $0.014 = **~$66 one-time**
 
-Add ~30% overhead for regeneration of weak entries during human review:
-- **Total budget: ~$230 one-time.**
+Add ~40% overhead for regeneration of weak entries during review
+(higher because we reject more for distinctiveness/verse-diversity
+violations):
+- **Total budget: ~$95 one-time.**
 
-Quarterly refresh (add 5 entries per bucket, retire 2 weakest):
-- 50 buckets × 5 entries × 2 locales × $0.071 = **~$36/quarter**
+Quarterly refresh (add 8 entries per bucket × ~50 buckets × 2 locales):
+- ~800 entries × $0.014 = **~$12/quarter**
 
 ---
 
