@@ -16,6 +16,7 @@ import {
   Title,
 } from "./ui";
 import { phoneHoursValue, type PhoneHours } from "@/lib/types";
+import { selectEntry, markShown, type CorpusEntry } from "@/lib/corpus-selector";
 
 /* -------------------- Screen 1 — Welcome -------------------- */
 export function Welcome() {
@@ -599,35 +600,72 @@ export function Response() {
   const { t, next, user } = useApp();
   const appLabel =
     t.appsOptions.find((o) => o.value === user.blockedApp)?.label ?? "Instagram";
+
+  const [entry, setEntry] = useState<CorpusEntry | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    selectEntry(user.mood).then((result) => {
+      setEntry(result);
+      setLoading(false);
+      if (result) markShown(result.id);
+    });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <Screen>
       <p className="mt-2 text-[13px] uppercase tracking-widest text-muted">
         {t.responseTitle}
       </p>
 
-      <Fade delay={0.1}>
-        <p className="mt-3 font-serif text-[22px] leading-snug italic text-fg">
-          {t.responseVerseText}
-        </p>
-        <p className="mt-2 text-[13px] text-accent">— {t.responseVerseRef}</p>
-      </Fade>
-
-      <Fade delay={0.6}>
-        <p className="mt-8 text-[15px] leading-relaxed text-fg/85">
-          {t.responseAdvice}
-        </p>
-      </Fade>
-
-      <Fade delay={1.2}>
-        <div className="mt-8 rounded-2xl border border-accent/30 bg-accent/5 p-5">
-          <p className="text-[15px] italic leading-relaxed text-fg">
-            {t.responsePrayer}
-          </p>
+      {loading && (
+        <div className="mt-8 space-y-3 animate-pulse">
+          <div className="h-5 w-3/4 rounded-lg bg-border" />
+          <div className="h-5 w-full rounded-lg bg-border" />
+          <div className="h-5 w-2/3 rounded-lg bg-border" />
+          <div className="mt-2 h-3 w-24 rounded bg-border" />
         </div>
-      </Fade>
+      )}
+
+      {!loading && entry && (
+        <>
+          <Fade delay={0.1}>
+            <p className="mt-4 font-serif text-[22px] leading-snug text-fg">
+              {entry.advice}
+            </p>
+            <p className="mt-3 text-[13px] text-accent">— {entry.verse_ref}</p>
+          </Fade>
+
+          <Fade delay={0.7}>
+            <div className="mt-8 rounded-2xl border border-accent/30 bg-accent/5 p-5">
+              <p className="text-[15px] italic leading-relaxed text-fg">
+                {entry.prayer}
+              </p>
+            </div>
+          </Fade>
+        </>
+      )}
+
+      {!loading && !entry && (
+        /* Fallback si el corpus no cargó (offline, etc.) */
+        <Fade delay={0.1}>
+          <p className="mt-4 font-serif text-[22px] leading-snug italic text-fg">
+            {t.responseVerseText}
+          </p>
+          <p className="mt-2 text-[13px] text-accent">— {t.responseVerseRef}</p>
+          <p className="mt-8 text-[15px] leading-relaxed text-fg/85">
+            {t.responseAdvice}
+          </p>
+          <div className="mt-8 rounded-2xl border border-accent/30 bg-accent/5 p-5">
+            <p className="text-[15px] italic leading-relaxed text-fg">
+              {t.responsePrayer}
+            </p>
+          </div>
+        </Fade>
+      )}
 
       <Spacer />
-      <Fade delay={1.6}>
+      <Fade delay={1.4}>
         <FooterCta>
           <Button onClick={next}>{t.responseCta(appLabel)}</Button>
         </FooterCta>
